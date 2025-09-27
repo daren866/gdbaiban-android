@@ -1,17 +1,15 @@
-# Kotlin
-.kotlin
-
-# Gradle
+*.iml
 .gradle
-build
-build-cache
-generated
-
-# Idea
-.idea
-
-/.github/keystore_release.jks
-/.github/keystore.properties
-
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
 local.properties
-releaseNotes.txt
