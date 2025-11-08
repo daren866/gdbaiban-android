@@ -9,7 +9,7 @@ google-material = "1.13.0"
 androidx-activity = "1.11.0"
 androidx-compose-ui = "1.9.4"
 androidx-compose-material3 = "1.4.0"
-androidx-core-splashscreen = "1.0.1"
+androidx-core-splashscreen = "1.2.0"
 
 [libraries]
 google-material = { module = "com.google.android.material:material", version.ref = "google-material" }
