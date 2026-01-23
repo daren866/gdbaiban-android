@@ -3,11 +3,11 @@ min-sdk = "31"
 compile-sdk = "36"
 target-sdk = "36"
 jdk = "21"
-agp = "8.13.2"
-kotlin = "2.2.21"
+agp = "9.0.0"
+kotlin = "2.3.0"
 google-material = "1.13.0"
 androidx-activity = "1.12.2"
-androidx-compose-ui = "1.10.0"
+androidx-compose-ui = "1.10.1"
 androidx-compose-material3 = "1.4.0"
 androidx-core-splashscreen = "1.2.0"
 
@@ -20,5 +20,4 @@ androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", versi
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
