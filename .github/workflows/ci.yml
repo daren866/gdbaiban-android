@@ -32,6 +32,8 @@ jobs:
     timeout-minutes: 60
     env:
       SHORT_SHA: ${{ needs.job-common.outputs.SHORT_SHA }}
+      NEW_PACKAGE_NAME: "com.gudaoweb.app"  # 定义新的包名
+      APP_NAME: "GudaoWeb"  # 定义应用名称
     steps:
       - name: checkout repo
         uses: actions/checkout@v4
@@ -58,6 +60,38 @@ jobs:
           path: ~/.gradle/wrapper
           key: gradle-wrapper-${{ runner.os }}-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
+      # 使用 sed 临时修改包名
+      - name: modify package name with sed
+        run: |
+          echo "原包名配置："
+          grep -n "namespace\|applicationId" app/build.gradle.kts || echo "未找到配置"
+          
+          # 备份原文件
+          cp app/build.gradle.kts app/build.gradle.kts.bak
+          
+          # 修改 namespace
+          sed -i 's/namespace\s*=\s*"[^"]*"/namespace = "'"$NEW_PACKAGE_NAME"'"/' app/build.gradle.kts
+          
+          # 修改 applicationId
+          sed -i 's/applicationId\s*=\s*"[^"]*"/applicationId = "'"$NEW_PACKAGE_NAME"'"/' app/build.gradle.kts
+          
+          # 修改 archivesName（输出文件名）
+          sed -i 's/archivesName\.set\s*(\s*"[^"]*"/archivesName.set("'"$APP_NAME"'-v${android.defaultConfig.versionName}(${android.defaultConfig.versionCode})"/' app/build.gradle.kts
+          
+          echo "修改后的包名配置："
+          grep -n "namespace\|applicationId" app/build.gradle.kts
+
+      # 或者使用更复杂的 sed 命令处理多行情况
+      - name: alternative sed method for complex cases
+        if: always()  # 即使上面的步骤失败也执行
+        run: |
+          # 更精确的替换方法，处理可能的多行情况
+          perl -i -pe 's/namespace\s*=\s*["'\''][^"'\'']*["'\'']/namespace = "'"$NEW_PACKAGE_NAME"'"/' app/build.gradle.kts
+          perl -i -pe 's/applicationId\s*=\s*["'\''][^"'\'']*["'\'']/applicationId = "'"$NEW_PACKAGE_NAME"'"/' app/build.gradle.kts
+          
+          echo "使用 Perl 确认修改："
+          grep -n "namespace\|applicationId" app/build.gradle.kts
+
       - name: clean outputs directory
         run: rm -rf app/build/outputs/*
 
@@ -70,6 +104,7 @@ jobs:
       - name: upload artifacts to outputs
         uses: actions/upload-artifact@v4
         with:
+          name: ${{ env.APP_NAME }}-${{ env.SHORT_SHA }}
           path: |
             app/build/outputs/apk
 
@@ -81,17 +116,26 @@ jobs:
         run: |
           echo "APK_PATH=$(find app/build/outputs/apk -name '*.apk' -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2)" >> $GITHUB_ENV
 
+      # 显示修改后的包名信息
+      - name: show package info
+        run: |
+          echo "当前包名: $NEW_PACKAGE_NAME"
+          echo "APK文件: $APK_PATH"
+          echo "应用版本: ${{ env.VERSION_NAME }} (${{ env.VERSION_CODE }})"
+
       - name: create pre-release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          name: Pre-release ${{ env.VERSION_NAME }} (${{ env.VERSION_CODE }}) - ${{ env.SHORT_SHA }}
+          name: ${{ env.APP_NAME }} Pre-release ${{ env.VERSION_NAME }} (${{ env.VERSION_CODE }}) - ${{ env.SHORT_SHA }}
           tag_name: pre-${{ env.SHORT_SHA }}
           prerelease: true
           files: ${{ env.APK_PATH }}
           body: |
-            ## 预发布版本
+            ## ${{ env.APP_NAME }} 预发布版本
             
+            - **应用名称:** ${{ env.APP_NAME }}
+            - **包名:** ${{ env.NEW_PACKAGE_NAME }}
             - **版本名称:** ${{ env.VERSION_NAME }}
             - **版本代码:** ${{ env.VERSION_CODE }}
             - **分支:** ${{ github.ref_name }}
@@ -107,3 +151,12 @@ jobs:
             - **工作流:** ${{ github.workflow }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 恢复原文件（可选）
+      - name: restore original file
+        if: always()
+        run: |
+          if [ -f app/build.gradle.kts.bak ]; then
+            mv app/build.gradle.kts.bak app/build.gradle.kts
+            echo "已恢复原文件"
+          fi
