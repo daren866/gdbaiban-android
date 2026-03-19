@@ -32,10 +32,8 @@ jobs:
     timeout-minutes: 60
     env:
       SHORT_SHA: ${{ needs.job-common.outputs.SHORT_SHA }}
-      OLD_PACKAGE: "org.michaelbel.myapplication"
       NEW_PACKAGE: "com.gudaoweb.app"
-      OLD_PATH: "org/michaelbel/myapplication"
-      NEW_PATH: "com/gudaoweb/app"
+      OLD_PACKAGE: "org.michaelbel.myapplication"
     steps:
       - name: checkout repo
         uses: actions/checkout@v4
@@ -62,60 +60,44 @@ jobs:
           path: ~/.gradle/wrapper
           key: gradle-wrapper-${{ runner.os }}-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
-      # 完整修改包名和相关引用
-      - name: modify package name and references
+      # 修改包名并删除旧文件
+      - name: modify package name and cleanup
         run: |
-          echo "=== 修改前 ==="
-          echo "Build.gradle中的包名："
-          grep -n "namespace\|applicationId" app/build.gradle.kts || echo "未找到"
-          
-          # 1. 修改 build.gradle.kts
+          echo "=== 修改 build.gradle.kts ==="
+          # 修改 build.gradle.kts
           sed -i 's/namespace\s*=\s*"[^"]*"/namespace = "'"$NEW_PACKAGE"'"/' app/build.gradle.kts
           sed -i 's/applicationId\s*=\s*"[^"]*"/applicationId = "'"$NEW_PACKAGE"'"/' app/build.gradle.kts
           sed -i 's/archivesName\.set\s*(\s*"[^"]*"/archivesName.set("GudaoWeb-v${android.defaultConfig.versionName}(${android.defaultConfig.versionCode})"/' app/build.gradle.kts
           
-          echo "=== 修改 build.gradle.kts 后 ==="
-          grep -n "namespace\|applicationId" app/build.gradle.kts
-          
-          # 2. 创建新的包目录结构
-          mkdir -p app/src/main/kotlin/${{ env.NEW_PATH }}
-          
-          # 3. 移动所有 Kotlin 文件到新包目录
-          if [ -d "app/src/main/kotlin/${{ env.OLD_PATH }}" ]; then
-            cp -r app/src/main/kotlin/${{ env.OLD_PATH }}/* app/src/main/kotlin/${{ env.NEW_PATH }}/
-            echo "已复制文件到新目录"
+          echo "=== 删除旧包名的文件 ==="
+          # 删除旧包名的所有文件（关键步骤！）
+          if [ -d "app/src/main/kotlin/org" ]; then
+            rm -rf app/src/main/kotlin/org
+            echo "已删除旧包名目录: app/src/main/kotlin/org"
           fi
           
-          # 4. 修改所有 Kotlin 文件中的包声明和导入
-          find app/src/main/kotlin -name "*.kt" -type f -exec sed -i 's/package ${{ env.OLD_PACKAGE }}/package ${{ env.NEW_PACKAGE }}/g' {} +
-          find app/src/main/kotlin -name "*.kt" -type f -exec sed -i 's/import ${{ env.OLD_PACKAGE }}/import ${{ env.NEW_PACKAGE }}/g' {} +
+          # 确保新包名目录存在
+          mkdir -p app/src/main/kotlin/com/gudaoweb/app
           
-          # 5. 修改资源文件中的包名引用（R 文件）
-          find app/src/main -name "*.kt" -type f -exec sed -i 's/import ${{ env.OLD_PACKAGE }}\.R/import ${{ env.NEW_PACKAGE }}\.R/g' {} +
-          find app/src/main -name "*.kt" -type f -exec sed -i 's/${{ env.OLD_PACKAGE }}\.R/${{ env.NEW_PACKAGE }}\.R/g' {} +
+          echo "=== 修改 Kotlin 文件中的包声明 ==="
+          # 修改所有 Kotlin 文件中的包声明
+          find app/src/main/kotlin -name "*.kt" -type f -exec sed -i 's/package org\.michaelbel\.myapplication/package com.gudaoweb.app/g' {} +
           
-          # 6. 修改 AndroidManifest.xml 中的包名
+          echo "=== 修改导入语句中的 R 文件 ==="
+          # 修改 R 文件导入
+          find app/src/main/kotlin -name "*.kt" -type f -exec sed -i 's/import org\.michaelbel\.myapplication\.R/import com.gudaoweb.app.R/g' {} +
+          find app/src/main/kotlin -name "*.kt" -type f -exec sed -i 's/org\.michaelbel\.myapplication\.R/com.gudaoweb.app.R/g' {} +
+          
+          # 修改 AndroidManifest.xml
           if [ -f "app/src/main/AndroidManifest.xml" ]; then
             sed -i 's/package="[^"]*"/package="'"$NEW_PACKAGE"'"/' app/src/main/AndroidManifest.xml
           fi
           
-          # 7. 修改资源文件中的布局引用
-          find app/src/main/res/layout -name "*.xml" -type f -exec sed -i 's/${{ env.OLD_PACKAGE }}/${{ env.NEW_PACKAGE }}/g' {} + 2>/dev/null || true
-          
-          echo "=== 修改完成 ==="
-          echo "新包名: $NEW_PACKAGE"
-          echo "查看修改后的 Kotlin 文件："
-          find app/src/main/kotlin -name "*.kt" -type f | head -5
-          head -5 app/src/main/kotlin/${{ env.NEW_PATH }}/MainActivity.kt 2>/dev/null || echo "MainActivity.kt 不存在"
-
-      # 可选：验证修改
-      - name: verify changes
-        run: |
-          echo "验证包声明："
-          grep -r "package $NEW_PACKAGE" app/src/main/kotlin/ --include="*.kt" | head -5
+          echo "=== 文件结构 ==="
+          find app/src/main/kotlin -type f -name "*.kt" | head -10
           echo ""
-          echo "验证 R 引用："
-          grep -r "import $NEW_PACKAGE.R" app/src/main/kotlin/ --include="*.kt" | head -5
+          echo "=== 验证包声明 ==="
+          grep -r "package" app/src/main/kotlin/ --include="*.kt" | head -5
 
       - name: clean outputs directory
         run: rm -rf app/build/outputs/*
