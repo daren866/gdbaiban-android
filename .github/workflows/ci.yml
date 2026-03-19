@@ -81,20 +81,29 @@ jobs:
         run: |
           echo "APK_PATH=$(find app/build/outputs/apk -name '*.apk' -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2)" >> $GITHUB_ENV
 
-      - name: telegram notify
+      - name: create pre-release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Pre-release ${{ env.VERSION_NAME }} (${{ env.VERSION_CODE }}) - ${{ env.SHORT_SHA }}
+          tag_name: pre-${{ env.SHORT_SHA }}
+          prerelease: true
+          files: ${{ env.APK_PATH }}
+          body: |
+            ## 预发布版本
+            
+            - **版本名称:** ${{ env.VERSION_NAME }}
+            - **版本代码:** ${{ env.VERSION_CODE }}
+            - **分支:** ${{ github.ref_name }}
+            - **提交ID:** ${{ github.sha }}
+            - **短提交ID:** ${{ env.SHORT_SHA }}
+            
+            ### 变更内容
+            ${{ github.event.head_commit.message }}
+            
+            ### 构建信息
+            - **构建触发:** ${{ github.event_name }}
+            - **构建时间:** ${{ github.event.repository.updated_at }}
+            - **工作流:** ${{ github.workflow }}
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
-          MESSAGE: |
-            ✅ *${{ env.VERSION_NAME }} (${{ env.VERSION_CODE }})*
-            *Repo:* [${{ github.repository }}](${{ github.server_url }}/${{ github.repository }})
-            *Branch:* [${{ github.ref_name }}](${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }})
-            *Commit:* [${{ env.SHORT_SHA }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument" \
-            -F chat_id="${CHAT_ID}" \
-            -F document="@${{ env.APK_PATH }}" \
-            -F caption="${{ env.MESSAGE }}" \
-            -F message_thread_id="${THREAD_ID}" \
-            -F parse_mode="Markdown"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
