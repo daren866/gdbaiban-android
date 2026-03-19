@@ -1,4 +1,4 @@
-package org.michaelbel.myapplication
+package com.gudaoweb.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
