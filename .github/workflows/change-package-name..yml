@@ -27,6 +27,24 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # 关键步骤：清理所有 Gradle 缓存
+      - name: Clear all caches
+        run: |
+          echo "=== 清理 Gradle 缓存 ==="
+          # 删除所有 Gradle 缓存目录
+          rm -rf ~/.gradle/caches/
+          rm -rf ~/.gradle/wrapper/
+          rm -rf .gradle/
+          
+          # 删除所有构建输出
+          rm -rf app/build/
+          rm -rf build/
+          
+          echo "缓存已清理"
+          
+          # 查看磁盘空间
+          df -h
+
       - name: Set new package variables
         run: |
           NEW_PACKAGE="${{ github.event.inputs.new_package_name }}"
@@ -74,16 +92,31 @@ jobs:
           
           echo "已更新 package 声明"
 
-      - name: Update R file imports in Kotlin files
+      - name: Update all imports and references
         run: |
-          # 修改 R 文件导入
-          find app/src/main/kotlin/${{ env.NEW_PATH }} -name "*.kt" -type f | while read file; do
-            echo "更新 R 引用: $file"
-            # 更新 import 语句
+          echo "=== 更新所有导入和引用 ==="
+          
+          # 更新所有 Kotlin 文件中的导入语句
+          find app/src/main/kotlin -name "*.kt" -type f | while read file; do
+            echo "处理文件: $file"
+            
+            # 更新 import 语句中的旧包名
+            sed -i "s/import ${{ env.OLD_PACKAGE }}\./import ${{ env.NEW_PACKAGE }}\./g" "$file"
+            
+            # 更新 R 文件导入
             sed -i "s/import ${{ env.OLD_PACKAGE }}\.R/import ${{ env.NEW_PACKAGE }}\.R/g" "$file"
-            # 更新直接引用
+            
+            # 更新直接引用的 R 文件
             sed -i "s/${{ env.OLD_PACKAGE }}\.R/${{ env.NEW_PACKAGE }}\.R/g" "$file"
+            
+            # 更新所有以旧包名开头的引用（包括 michaelbel）
+            sed -i "s/${{ env.OLD_PACKAGE }}\./${{ env.NEW_PACKAGE }}\./g" "$file"
+            
+            # 专门处理 michaelbel 的引用
+            sed -i "s/org\.michaelbel\./com\.gudaoweb\./g" "$file"
           done
+          
+          echo "导入和引用更新完成"
 
       - name: Update build.gradle.kts
         run: |
@@ -109,6 +142,10 @@ jobs:
           if [ -f "app/src/main/AndroidManifest.xml" ]; then
             # 修改 manifest 中的 package
             sed -i "s/package=\"${{ env.OLD_PACKAGE }}\"/package=\"${{ env.NEW_PACKAGE }}\"/" app/src/main/AndroidManifest.xml
+            
+            # 更新 manifest 中的其他引用
+            sed -i "s/${{ env.OLD_PACKAGE }}/${{ env.NEW_PACKAGE }}/g" app/src/main/AndroidManifest.xml
+            
             echo "已更新 AndroidManifest.xml"
           fi
 
@@ -117,6 +154,8 @@ jobs:
           # 更新布局文件中的包名引用
           find app/src/main/res -name "*.xml" -type f | while read file; do
             sed -i "s/${{ env.OLD_PACKAGE }}/${{ env.NEW_PACKAGE }}/g" "$file" 2>/dev/null || true
+            # 专门处理 michaelbel
+            sed -i "s/org\.michaelbel\./com\.gudaoweb\./g" "$file" 2>/dev/null || true
           done
           echo "已更新 XML 资源文件"
 
@@ -138,11 +177,47 @@ jobs:
           echo "检查 package 声明:"
           grep -r "package ${{ env.NEW_PACKAGE }}" app/src/main/kotlin/${{ env.NEW_PATH }} --include="*.kt" | head -5
           echo ""
-          echo "检查 R 引用:"
-          grep -r "import ${{ env.NEW_PACKAGE }}.R" app/src/main/kotlin/${{ env.NEW_PATH }} --include="*.kt" | head -5
+          echo "检查导入语句:"
+          grep -r "^import" app/src/main/kotlin/${{ env.NEW_PATH }} --include="*.kt" | head -10
+          echo ""
+          echo "检查是否有残留的旧包名:"
+          grep -r "org\.michaelbel" app/src/main/kotlin/ --include="*.kt" || echo "没有发现旧包名"
           echo ""
           echo "检查 build.gradle.kts:"
           grep -A 2 "namespace\|applicationId" app/build.gradle.kts
+
+      # 再次清理构建目录，确保干净构建
+      - name: Clean build directory again
+        run: |
+          echo "=== 再次清理构建目录 ==="
+          rm -rf app/build/
+          rm -rf build/
+          echo "构建目录已清理"
+
+      - name: Build APK to verify (clean build)
+        run: |
+          echo "=== 开始全新构建 APK ==="
+          chmod +x ./gradlew
+          
+          # 使用 --no-build-cache 和 --refresh-dependencies 确保不使用缓存
+          ./gradlew clean assembleDebug --no-build-cache --refresh-dependencies --stacktrace
+          
+          echo "=== 构建完成 ==="
+          
+          # 显示生成的 APK 信息
+          echo "生成的 APK 文件:"
+          find app/build/outputs -name "*.apk" -type f -ls
+          
+          # 显示 APK 的详细信息
+          APK_PATH=$(find app/build/outputs -name "*.apk" -type f | head -1)
+          if [ -n "$APK_PATH" ]; then
+            echo "APK 路径: $APK_PATH"
+            ls -la "$APK_PATH"
+            file "$APK_PATH"
+          else
+            echo "错误: 没有生成 APK 文件!"
+            exit 1
+          fi
 
       - name: Commit and push changes
         run: |
@@ -167,17 +242,10 @@ jobs:
             git show --stat
           fi
 
-      - name: Build APK to verify
-        run: |
-          echo "=== 构建 APK 验证修改 ==="
-          chmod +x ./gradlew
-          ./gradlew assembleDebug
-          
-          echo "构建成功！"
-          find app/build/outputs -name "*.apk" -type f
-
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-with-new-package
+          name: app-with-new-package-${{ github.run_id }}
           path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 30
