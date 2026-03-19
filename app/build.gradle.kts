@@ -24,11 +24,11 @@ kotlin {
 }
 
 android {
-    namespace = "org.michaelbel.myapplication"
+    namespace = "com.gudao.webapp"
     compileSdk = libs.versions.compile.sdk.get().toInt()
 
     defaultConfig {
-        applicationId = "org.michaelbel.myapplication"
+        applicationId = "com.gudao.webapp"
         minSdk = libs.versions.min.sdk.get().toInt()
         targetSdk = libs.versions.target.sdk.get().toInt()
         versionCode = gitCommitsCount
