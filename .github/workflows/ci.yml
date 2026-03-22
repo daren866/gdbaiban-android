@@ -1,4 +1,4 @@
-name: Change Package Name
+name: Change Package Name and Release
 
 on:
   workflow_dispatch:
@@ -11,12 +11,16 @@ on:
         description: '提交信息'
         required: true
         default: 'Change package name to com.gudaoweb.app'
+      release_type:
+        description: '发布类型 (pre=预发布版，其他=正式版)'
+        required: true
+        default: 'pre'
 
 jobs:
-  change-package:
+  change-package-and-release:
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write  # 允许推送代码和创建 Release
     env:
       OLD_PACKAGE: "org.michaelbel.myapplication"
       OLD_PATH: "org/michaelbel/myapplication"
@@ -49,7 +53,6 @@ jobs:
             echo "copied=false" >> $GITHUB_OUTPUT
           fi
 
-      # 更新 Kotlin 文件中的 package 和 import（仅当有文件复制时）
       - name: Update package declarations
         if: steps.copy_kotlin.outputs.copied == 'true'
         run: |
@@ -60,7 +63,6 @@ jobs:
             sed -i "s/${{ env.OLD_PACKAGE }}\.R/${{ env.NEW_PACKAGE }}\.R/g" "$file"
           done
 
-      # 更新 build.gradle.kts
       - name: Update build.gradle.kts
         run: |
           cp app/build.gradle.kts app/build.gradle.kts.bak
@@ -69,48 +71,38 @@ jobs:
           APP_NAME=$(echo "${{ env.NEW_PACKAGE }}" | cut -d'.' -f2)
           sed -i "s/archivesName\.set\s*(\s*\"[^\"]*\"/archivesName.set(\"${APP_NAME^}-v\${android.defaultConfig.versionName}(\${android.defaultConfig.versionCode})\"/" app/build.gradle.kts
 
-      # 更新 AndroidManifest.xml
       - name: Update AndroidManifest.xml
         run: |
           if [ -f "app/src/main/AndroidManifest.xml" ]; then
             sed -i "s/package=\"${{ env.OLD_PACKAGE }}\"/package=\"${{ env.NEW_PACKAGE }}\"/" app/src/main/AndroidManifest.xml
           fi
 
-      # 更新 XML 资源文件
       - name: Update XML resources
         run: |
           find app/src/main/res -name "*.xml" -type f | while read file; do
             sed -i "s/${{ env.OLD_PACKAGE }}/${{ env.NEW_PACKAGE }}/g" "$file"
           done
 
-      # ========== 关键步骤：全局替换所有剩余旧包名 ==========
-      - name: Global replace old package name in all text files
+      - name: Global replace old package name
         run: |
-          echo "=== 全局替换旧包名为新包名 ==="
-          # 在所有文本文件中替换，排除构建目录和 .git
+          echo "=== 全局替换旧包名 ==="
           find . -type f \( -name "*.kt" -o -name "*.xml" -o -name "*.gradle*" -o -name "*.properties" -o -name "*.pro" -o -name "*.java" -o -name "*.kts" \) \
             -not -path "*/build/*" -not -path "*/.git/*" | while read file; do
             sed -i "s/${{ env.OLD_PACKAGE }}/${{ env.NEW_PACKAGE }}/g" "$file"
           done
-          echo "全局替换完成"
 
-      # ========== 验证是否还有旧包名残留 ==========
       - name: Verify no old package name remains
         run: |
-          echo "=== 检查是否还有旧包名残留 ==="
           if grep -r "${{ env.OLD_PACKAGE }}" --include="*.kt" --include="*.xml" --include="*.gradle*" --include="*.properties" --include="*.pro" --include="*.java" --include="*.kts" \
             --exclude-dir=build --exclude-dir=.git .; then
-            echo "错误: 仍然存在旧包名引用，请检查！"
+            echo "错误: 仍然存在旧包名引用！"
             exit 1
-          else
-            echo "验证通过，无旧包名残留。"
           fi
 
       - name: Remove old package directory
         if: steps.copy_kotlin.outputs.copied == 'true'
         run: |
           rm -rf app/src/main/kotlin/${{ env.OLD_PATH }}
-          echo "已删除旧目录"
 
       - name: Commit and push changes
         run: |
@@ -133,10 +125,32 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleDebug
-          find app/build/outputs -name "*.apk" -type f
+          echo "APK_PATH=$(find app/build/outputs -name "*.apk" -type f | head -1)" >> $GITHUB_ENV
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      # 提取版本号
+      - name: Extract version from build.gradle.kts
+        id: version
+        run: |
+          VERSION_NAME=$(grep -E 'versionName\s*=\s*"[^"]+"' app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION_CODE=$(grep -E 'versionCode\s*=\s*[0-9]+' app/build.gradle.kts | sed -E 's/.*=\s*([0-9]+).*/\1/')
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          echo "版本: $VERSION_NAME ($VERSION_CODE)"
+
+      # 创建 GitHub Release 并上传 APK
+      - name: Create Release and upload APK
+        uses: softprops/action-gh-release@v1
         with:
-          name: app-with-new-package
-          path: app/build/outputs/apk/**/*.apk
+          tag_name: v${{ env.VERSION_NAME }}
+          name: v${{ env.VERSION_NAME }}
+          body: |
+            ## 包名已更改为 ${{ env.NEW_PACKAGE }}
+            
+            **提交信息:** ${{ github.event.inputs.commit_message }}
+            
+            **构建时间:** $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            **版本信息:** ${{ env.VERSION_NAME }} (code ${{ env.VERSION_CODE }}
+          prerelease: ${{ github.event.inputs.release_type == 'pre' }}
+          files: ${{ env.APK_PATH }}
+          token: ${{ secrets.GITHUB_TOKEN }}
