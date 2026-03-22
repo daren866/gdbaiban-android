@@ -27,24 +27,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 关键步骤：清理所有 Gradle 缓存
-      - name: Clear all caches
-        run: |
-          echo "=== 清理 Gradle 缓存 ==="
-          # 删除所有 Gradle 缓存目录
-          rm -rf ~/.gradle/caches/
-          rm -rf ~/.gradle/wrapper/
-          rm -rf .gradle/
-          
-          # 删除所有构建输出
-          rm -rf app/build/
-          rm -rf build/
-          
-          echo "缓存已清理"
-          
-          # 查看磁盘空间
-          df -h
-
       - name: Set new package variables
         run: |
           NEW_PACKAGE="${{ github.event.inputs.new_package_name }}"
@@ -162,39 +144,6 @@ jobs:
           echo "检查 build.gradle.kts:"
           grep -A 2 "namespace\|applicationId" app/build.gradle.kts
 
-      # 再次清理构建目录，确保干净构建
-      - name: Clean build directory again
-        run: |
-          echo "=== 再次清理构建目录 ==="
-          rm -rf app/build/
-          rm -rf build/
-          echo "构建目录已清理"
-
-      - name: Build APK to verify (clean build)
-        run: |
-          echo "=== 开始全新构建 APK ==="
-          chmod +x ./gradlew
-          
-          # 使用 --no-build-cache 和 --refresh-dependencies 确保不使用缓存
-          ./gradlew clean assembleDebug --no-build-cache --refresh-dependencies --stacktrace
-          
-          echo "=== 构建完成 ==="
-          
-          # 显示生成的 APK 信息
-          echo "生成的 APK 文件:"
-          find app/build/outputs -name "*.apk" -type f -ls
-          
-          # 显示 APK 的详细信息
-          APK_PATH=$(find app/build/outputs -name "*.apk" -type f | head -1)
-          if [ -n "$APK_PATH" ]; then
-            echo "APK 路径: $APK_PATH"
-            ls -la "$APK_PATH"
-            file "$APK_PATH"
-          else
-            echo "错误: 没有生成 APK 文件!"
-            exit 1
-          fi
-
       - name: Commit and push changes
         run: |
           # 配置 git
@@ -218,10 +167,25 @@ jobs:
             git show --stat
           fi
 
+      # ==================== 新增：清理缓存 ====================
+      - name: Clean build
+        run: |
+          echo "=== 清理旧构建产物和缓存 ==="
+          chmod +x ./gradlew
+          ./gradlew clean
+      # ====================================================
+
+      - name: Build APK to verify
+        run: |
+          echo "=== 构建 APK 验证修改 ==="
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+          
+          echo "构建成功！"
+          find app/build/outputs -name "*.apk" -type f
+
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-with-new-package-${{ github.run_id }}
+          name: app-with-new-package
           path: app/build/outputs/apk/**/*.apk
-          if-no-files-found: error
-          retention-days: 30
