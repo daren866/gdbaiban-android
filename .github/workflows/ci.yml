@@ -32,44 +32,35 @@ jobs:
           echo "NEW_PACKAGE=$NEW_PACKAGE" >> $GITHUB_ENV
           NEW_PATH=$(echo $NEW_PACKAGE | tr '.' '/')
           echo "NEW_PATH=$NEW_PATH" >> $GITHUB_ENV
-          echo "旧包名: ${{ env.OLD_PACKAGE }}"
-          echo "新包名: $NEW_PACKAGE"
-          echo "旧路径: ${{ env.OLD_PATH }}"
-          echo "新路径: $NEW_PATH"
 
       - name: Create new directory structure
         run: |
           mkdir -p app/src/main/kotlin/${{ env.NEW_PATH }}
           echo "创建新目录: app/src/main/kotlin/${{ env.NEW_PATH }}"
 
-      - name: Copy Kotlin files to new package (if old exists)
+      - name: Copy Kotlin files (if old exists)
         id: copy_kotlin
         run: |
           if [ -d "app/src/main/kotlin/${{ env.OLD_PATH }}" ]; then
             cp -r app/src/main/kotlin/${{ env.OLD_PATH }}/* app/src/main/kotlin/${{ env.NEW_PATH }}/
-            echo "已复制文件到新目录"
             echo "copied=true" >> $GITHUB_OUTPUT
-            ls -la app/src/main/kotlin/${{ env.NEW_PATH }}/
           else
-            echo "警告: 旧目录 app/src/main/kotlin/${{ env.OLD_PATH }} 不存在，跳过 Kotlin 文件迁移"
+            echo "警告: 旧目录不存在，跳过 Kotlin 文件迁移"
             echo "copied=false" >> $GITHUB_OUTPUT
           fi
 
+      # 更新 Kotlin 文件中的 package 和 import（仅当有文件复制时）
       - name: Update package declarations
         if: steps.copy_kotlin.outputs.copied == 'true'
         run: |
           find app/src/main/kotlin/${{ env.NEW_PATH }} -name "*.kt" -type f | while read file; do
             sed -i "s/package ${{ env.OLD_PACKAGE }}/package ${{ env.NEW_PACKAGE }}/g" "$file"
-          done
-
-      - name: Update R imports
-        if: steps.copy_kotlin.outputs.copied == 'true'
-        run: |
-          find app/src/main/kotlin/${{ env.NEW_PATH }} -name "*.kt" -type f | while read file; do
-            sed -i "s/import ${{ env.OLD_PACKAGE }}\.R/import ${{ env.NEW_PACKAGE }}\.R/g" "$file"
+            sed -i "s/import ${{ env.OLD_PACKAGE }}\./import ${{ env.NEW_PACKAGE }}\./g" "$file"
+            sed -i "s/import ${{ env.OLD_PACKAGE }}$/import ${{ env.NEW_PACKAGE }}/g" "$file"
             sed -i "s/${{ env.OLD_PACKAGE }}\.R/${{ env.NEW_PACKAGE }}\.R/g" "$file"
           done
 
+      # 更新 build.gradle.kts
       - name: Update build.gradle.kts
         run: |
           cp app/build.gradle.kts app/build.gradle.kts.bak
@@ -78,34 +69,50 @@ jobs:
           APP_NAME=$(echo "${{ env.NEW_PACKAGE }}" | cut -d'.' -f2)
           sed -i "s/archivesName\.set\s*(\s*\"[^\"]*\"/archivesName.set(\"${APP_NAME^}-v\${android.defaultConfig.versionName}(\${android.defaultConfig.versionCode})\"/" app/build.gradle.kts
 
+      # 更新 AndroidManifest.xml
       - name: Update AndroidManifest.xml
         run: |
           if [ -f "app/src/main/AndroidManifest.xml" ]; then
             sed -i "s/package=\"${{ env.OLD_PACKAGE }}\"/package=\"${{ env.NEW_PACKAGE }}\"/" app/src/main/AndroidManifest.xml
           fi
 
+      # 更新 XML 资源文件
       - name: Update XML resources
         run: |
           find app/src/main/res -name "*.xml" -type f | while read file; do
-            sed -i "s/${{ env.OLD_PACKAGE }}/${{ env.NEW_PACKAGE }}/g" "$file" 2>/dev/null || true
+            sed -i "s/${{ env.OLD_PACKAGE }}/${{ env.NEW_PACKAGE }}/g" "$file"
           done
+
+      # ========== 关键步骤：全局替换所有剩余旧包名 ==========
+      - name: Global replace old package name in all text files
+        run: |
+          echo "=== 全局替换旧包名为新包名 ==="
+          # 在所有文本文件中替换，排除构建目录和 .git
+          find . -type f \( -name "*.kt" -o -name "*.xml" -o -name "*.gradle*" -o -name "*.properties" -o -name "*.pro" -o -name "*.java" -o -name "*.kts" \) \
+            -not -path "*/build/*" -not -path "*/.git/*" | while read file; do
+            sed -i "s/${{ env.OLD_PACKAGE }}/${{ env.NEW_PACKAGE }}/g" "$file"
+          done
+          echo "全局替换完成"
+
+      # ========== 验证是否还有旧包名残留 ==========
+      - name: Verify no old package name remains
+        run: |
+          echo "=== 检查是否还有旧包名残留 ==="
+          if grep -r "${{ env.OLD_PACKAGE }}" --include="*.kt" --include="*.xml" --include="*.gradle*" --include="*.properties" --include="*.pro" --include="*.java" --include="*.kts" \
+            --exclude-dir=build --exclude-dir=.git .; then
+            echo "错误: 仍然存在旧包名引用，请检查！"
+            exit 1
+          else
+            echo "验证通过，无旧包名残留。"
+          fi
 
       - name: Remove old package directory
         if: steps.copy_kotlin.outputs.copied == 'true'
         run: |
           rm -rf app/src/main/kotlin/${{ env.OLD_PATH }}
-          echo "已删除旧目录: app/src/main/kotlin/${{ env.OLD_PATH }}"
+          echo "已删除旧目录"
 
-      - name: Verify changes
-        run: |
-          echo "=== 验证修改 ==="
-          grep -A 2 "namespace\|applicationId" app/build.gradle.kts
-          if [ "${{ steps.copy_kotlin.outputs.copied }}" == "true" ]; then
-            echo "Kotlin 文件包名示例:"
-            grep -r "package ${{ env.NEW_PACKAGE }}" app/src/main/kotlin/${{ env.NEW_PATH }} --include="*.kt" | head -3
-          fi
-
-      - name: Commit and push
+      - name: Commit and push changes
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
