@@ -47,23 +47,25 @@ jobs:
           mkdir -p app/src/main/kotlin/${{ env.NEW_PATH }}
           echo "创建新目录: app/src/main/kotlin/${{ env.NEW_PATH }}"
 
-      - name: Copy Kotlin files to new package
+      - name: Copy Kotlin files to new package (if old exists)
+        id: copy_kotlin
         run: |
           # 检查旧目录是否存在
           if [ -d "app/src/main/kotlin/${{ env.OLD_PATH }}" ]; then
             # 复制所有 Kotlin 文件到新目录
             cp -r app/src/main/kotlin/${{ env.OLD_PATH }}/* app/src/main/kotlin/${{ env.NEW_PATH }}/
             echo "已复制文件到新目录"
-            
+            echo "copied=true" >> $GITHUB_OUTPUT
             # 显示复制的文件
             echo "复制的文件:"
             ls -la app/src/main/kotlin/${{ env.NEW_PATH }}/
           else
-            echo "错误: 旧目录不存在!"
-            exit 1
+            echo "警告: 旧目录 app/src/main/kotlin/${{ env.OLD_PATH }} 不存在，跳过 Kotlin 文件迁移"
+            echo "copied=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Update package declarations in Kotlin files
+        if: steps.copy_kotlin.outputs.copied == 'true'
         run: |
           # 修改所有 Kotlin 文件中的 package 声明
           find app/src/main/kotlin/${{ env.NEW_PATH }} -name "*.kt" -type f | while read file; do
@@ -75,6 +77,7 @@ jobs:
           echo "已更新 package 声明"
 
       - name: Update R file imports in Kotlin files
+        if: steps.copy_kotlin.outputs.copied == 'true'
         run: |
           # 修改 R 文件导入
           find app/src/main/kotlin/${{ env.NEW_PATH }} -name "*.kt" -type f | while read file; do
@@ -121,6 +124,7 @@ jobs:
           echo "已更新 XML 资源文件"
 
       - name: Remove old package directory
+        if: steps.copy_kotlin.outputs.copied == 'true'
         run: |
           # 删除旧包名目录
           if [ -d "app/src/main/kotlin/${{ env.OLD_PATH }}" ]; then
@@ -133,14 +137,16 @@ jobs:
           echo "=== 验证修改后的文件 ==="
           echo ""
           echo "新目录结构:"
-          find app/src/main/kotlin/${{ env.NEW_PATH }} -type f -name "*.kt" | head -10
+          find app/src/main/kotlin -type f -name "*.kt" | head -10
           echo ""
-          echo "检查 package 声明:"
-          grep -r "package ${{ env.NEW_PACKAGE }}" app/src/main/kotlin/${{ env.NEW_PATH }} --include="*.kt" | head -5
-          echo ""
-          echo "检查 R 引用:"
-          grep -r "import ${{ env.NEW_PACKAGE }}.R" app/src/main/kotlin/${{ env.NEW_PATH }} --include="*.kt" | head -5
-          echo ""
+          if [ "${{ steps.copy_kotlin.outputs.copied }}" == "true" ]; then
+            echo "检查 package 声明:"
+            grep -r "package ${{ env.NEW_PACKAGE }}" app/src/main/kotlin/${{ env.NEW_PATH }} --include="*.kt" | head -5
+            echo ""
+            echo "检查 R 引用:"
+            grep -r "import ${{ env.NEW_PACKAGE }}.R" app/src/main/kotlin/${{ env.NEW_PATH }} --include="*.kt" | head -5
+            echo ""
+          fi
           echo "检查 build.gradle.kts:"
           grep -A 2 "namespace\|applicationId" app/build.gradle.kts
 
@@ -167,13 +173,12 @@ jobs:
             git show --stat
           fi
 
-      # ==================== 新增：清理缓存 ====================
+      # 清理旧构建产物和缓存
       - name: Clean build
         run: |
           echo "=== 清理旧构建产物和缓存 ==="
           chmod +x ./gradlew
           ./gradlew clean
-      # ====================================================
 
       - name: Build APK to verify
         run: |
