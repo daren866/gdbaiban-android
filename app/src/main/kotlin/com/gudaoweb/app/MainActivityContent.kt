@@ -15,22 +15,22 @@ import androidx.compose.ui.viewinterop.AndroidView
 fun MainActivityContent() {
     val context = LocalContext.current
 
-    // 强制竖屏
+    // 强制竖屏（也可在 AndroidManifest.xml 中配置）
     (context as? android.app.Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
     AndroidView(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),  // 铺满系统栏下方的可用区域
         factory = { ctx ->
             WebView(ctx).apply {
                 settings.apply {
-                    javaScriptEnabled = true          // 启用 JavaScript
-                    domStorageEnabled = true          // 启用 DOM 存储（可选）
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
                     loadWithOverviewMode = true
                     useWideViewPort = true
                 }
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        // 注入全局 JavaScript 函数 dialog，该函数调用原生 Android 接口
+                        // 注入全局 dialog 函数，调用原生接口
                         view?.evaluateJavascript(
                             """
                             window.dialog = function(message, title) {
@@ -42,10 +42,9 @@ fun MainActivityContent() {
                     }
                 }
 
-                // 添加 JavaScript 接口，对象名为 Android
                 addJavascriptInterface(JavaScriptInterface(context), "Android")
 
-                // 加载 HTML 内容（包含按钮）
+                // 加载 HTML 内容
                 loadDataWithBaseURL(
                     null,
                     """
@@ -83,13 +82,9 @@ fun MainActivityContent() {
     )
 }
 
-/**
- * JavaScript 接口类，用于与原生 Android 交互
- */
 private class JavaScriptInterface(private val context: android.content.Context) {
     @JavascriptInterface
     fun showDialog(title: String, message: String) {
-        // 确保对话框在主线程显示
         (context as? android.app.Activity)?.runOnUiThread {
             AlertDialog.Builder(context)
                 .setTitle(title)
