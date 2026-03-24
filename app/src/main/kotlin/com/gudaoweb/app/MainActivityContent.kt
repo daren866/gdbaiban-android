@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
 
 @Composable
 fun MainActivityContent() {
@@ -30,14 +31,12 @@ fun MainActivityContent() {
                 }
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        // 注入全局函数 dialog 和 statusbar.color
+                        // 注入全局函数
                         view?.evaluateJavascript(
                             """
-                            // 已有 dialog 函数
                             window.dialog = function(message, title) {
                                 Android.showDialog(title, message);
                             };
-                            // 新增 statusbar.color 函数
                             window.statusbar = window.statusbar || {};
                             window.statusbar.color = function(colorCode) {
                                 Android.setStatusBarColor(colorCode);
@@ -95,6 +94,9 @@ fun MainActivityContent() {
     )
 }
 
+/**
+ * JavaScript 接口类，用于与原生 Android 交互
+ */
 private class JavaScriptInterface(private val context: android.content.Context) {
     @JavascriptInterface
     fun showDialog(title: String, message: String) {
@@ -109,19 +111,18 @@ private class JavaScriptInterface(private val context: android.content.Context) 
 
     @JavascriptInterface
     fun setStatusBarColor(colorCode: String) {
-        (context as? android.app.Activity)?.runOnUiThread {
+        val activity = context as? android.app.Activity ?: return
+        activity.runOnUiThread {
             try {
                 val color = Color.parseColor(colorCode)
-                context.window?.statusBarColor = color
-                context.window?.navigationBarColor = color
-                // 可根据颜色深浅自动调整状态栏图标颜色（可选）
-                val isLight = Color.luminance(color) > 0.5
-                val windowInsetsController = androidx.core.view.WindowCompat.getInsetsController(
-                    context.window,
-                    context.window?.decorView
-                )
-                windowInsetsController?.isAppearanceLightStatusBars = isLight
-                windowInsetsController?.isAppearanceLightNavigationBars = isLight
+                activity.window?.apply {
+                    statusBarColor = color
+                    navigationBarColor = color
+                    val windowInsetsController = WindowCompat.getInsetsController(this, decorView)
+                    val isLight = Color.luminance(color) > 0.5
+                    windowInsetsController.isAppearanceLightStatusBars = isLight
+                    windowInsetsController.isAppearanceLightNavigationBars = isLight
+                }
             } catch (e: Exception) {
                 // 颜色格式错误时忽略
             }
