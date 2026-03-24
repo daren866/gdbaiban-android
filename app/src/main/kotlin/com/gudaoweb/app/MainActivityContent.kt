@@ -1,10 +1,10 @@
 package com.gudaoweb.app
 
 import android.content.pm.ActivityInfo
+import android.graphics.Color
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -15,11 +15,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 fun MainActivityContent() {
     val context = LocalContext.current
 
-    // 强制竖屏（也可在 AndroidManifest.xml 中配置）
+    // 强制竖屏
     (context as? android.app.Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
     AndroidView(
-        modifier = Modifier.fillMaxSize(),  // 铺满系统栏下方的可用区域
+        modifier = Modifier.fillMaxSize(),
         factory = { ctx ->
             WebView(ctx).apply {
                 settings.apply {
@@ -30,11 +30,17 @@ fun MainActivityContent() {
                 }
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        // 注入全局 dialog 函数，调用原生接口
+                        // 注入全局函数 dialog 和 statusbar.color
                         view?.evaluateJavascript(
                             """
+                            // 已有 dialog 函数
                             window.dialog = function(message, title) {
                                 Android.showDialog(title, message);
+                            };
+                            // 新增 statusbar.color 函数
+                            window.statusbar = window.statusbar || {};
+                            window.statusbar.color = function(colorCode) {
+                                Android.setStatusBarColor(colorCode);
                             };
                             """.trimIndent(),
                             null
@@ -44,7 +50,6 @@ fun MainActivityContent() {
 
                 addJavascriptInterface(JavaScriptInterface(context), "Android")
 
-                // 加载 HTML 内容
                 loadDataWithBaseURL(
                     null,
                     """
@@ -63,6 +68,10 @@ fun MainActivityContent() {
                                 margin-top: 12px;
                                 padding: 8px 16px;
                                 font-size: 16px;
+                                margin-right: 8px;
+                            }
+                            .button-group {
+                                margin-top: 12px;
                             }
                         </style>
                     </head>
@@ -70,6 +79,10 @@ fun MainActivityContent() {
                         <h1>你好web世界！</h1>
                         <p>古道web框架哦。</p>
                         <button type="button" onclick="dialog('test dialog', '测试函数哦')">函数测试</button>
+                        <div class="button-group">
+                            <button type="button" onclick="statusbar.color('#FFFFFF')">设置白色状态栏</button>
+                            <button type="button" onclick="statusbar.color('#66CCFF')">设置蓝色状态栏</button>
+                        </div>
                     </body>
                     </html>
                     """.trimIndent(),
@@ -86,11 +99,32 @@ private class JavaScriptInterface(private val context: android.content.Context) 
     @JavascriptInterface
     fun showDialog(title: String, message: String) {
         (context as? android.app.Activity)?.runOnUiThread {
-            AlertDialog.Builder(context)
+            android.app.AlertDialog.Builder(context)
                 .setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("确定") { dialog, _ -> dialog.dismiss() }
                 .show()
+        }
+    }
+
+    @JavascriptInterface
+    fun setStatusBarColor(colorCode: String) {
+        (context as? android.app.Activity)?.runOnUiThread {
+            try {
+                val color = Color.parseColor(colorCode)
+                context.window?.statusBarColor = color
+                context.window?.navigationBarColor = color
+                // 可根据颜色深浅自动调整状态栏图标颜色（可选）
+                val isLight = Color.luminance(color) > 0.5
+                val windowInsetsController = androidx.core.view.WindowCompat.getInsetsController(
+                    context.window,
+                    context.window?.decorView
+                )
+                windowInsetsController?.isAppearanceLightStatusBars = isLight
+                windowInsetsController?.isAppearanceLightNavigationBars = isLight
+            } catch (e: Exception) {
+                // 颜色格式错误时忽略
+            }
         }
     }
 }
