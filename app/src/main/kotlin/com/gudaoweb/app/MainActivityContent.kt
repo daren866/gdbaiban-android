@@ -30,7 +30,6 @@ fun MainActivityContent() {
                 }
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        // 注入 JavaScript 函数
                         view?.evaluateJavascript(
                             """
                             window.dialog = function(message, title) {
@@ -99,8 +98,8 @@ private class JavaScriptInterface(private val context: android.content.Context) 
         (context as? MainActivity)?.runOnUiThread {
             try {
                 val color = Color.parseColor(colorCode)
-                // 调用 Activity 的兼容方法（自动判断版本）
-                it.setStatusBarColorFromWeb(color)
+                // 状态栏和导航栏都设置为同一颜色
+                setStatusBarColorFromWeb(color, color)
             } catch (e: Exception) {
                 // 颜色格式错误时忽略
             }
