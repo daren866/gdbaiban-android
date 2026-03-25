@@ -1,145 +1,90 @@
-package com.gudaoweb.app
-
-import android.graphics.Color
-import android.os.Build
-import android.os.Bundle
-import android.util.TypedValue
-import android.view.View
-import android.view.ViewGroup
-import android.widget.FrameLayout
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Environment
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import java.io.File
+import java.io.FileOutputStream
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
+    // ... 已有代码 ...
 
-    private val defaultStatusBarColor = "#66CCFF"
-    private val defaultNavBarColor = "#66CCFF"
+    // 请求码
+    private val REQUEST_STORAGE_PERMISSION = 1001
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        setStatusBarColorCompat(
-            Color.parseColor(defaultStatusBarColor),
-            Color.parseColor(defaultNavBarColor)
-        )
-
-        setContent {
-            MainActivityContent()
+    // 供 JavaScript 调用的下载方法
+    fun downloadFile(url: String, fileplace: String, filename: String) {
+        // 检查存储权限
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            // 请求权限，并将参数保存
+            requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), REQUEST_STORAGE_PERMISSION)
+            // 保存参数以便权限回调后使用
+            pendingDownload = Triple(url, fileplace, filename)
+            return
         }
+        // 已有权限，执行下载
+        performDownload(url, fileplace, filename)
     }
 
-    /**
-     * 供网页调用的公开方法，设置状态栏和导航栏颜色（两者相同）
-     */
-    fun setStatusBarColorFromWeb(statusColor: Int, navColor: Int? = null) {
-        setStatusBarColorCompat(statusColor, navColor ?: statusColor)
-    }
+    private var pendingDownload: Triple<String, String, String>? = null
 
-    // ========== 版本兼容核心方法 ==========
-    private fun setStatusBarColorCompat(statusColor: Int, navColor: Int) {
-        if (Build.VERSION.SDK_INT >= 36) { // Android 16 = API 36
-            // 使用自定义 View 方案
-            window.statusBarColor = Color.TRANSPARENT
-            window.navigationBarColor = Color.TRANSPARENT
-            WindowCompat.setDecorFitsSystemWindows(window, false) // 让内容延伸到系统栏下，以便覆盖
-
-            removeOverlay("status_bar_overlay")
-            removeOverlay("nav_bar_overlay")
-            addStatusBarOverlay(statusColor)
-            addNavigationBarOverlay(navColor)
-
-            // 根据颜色亮度自动调整状态栏图标颜色
-            setSystemBarIconColor(statusColor, navColor)
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_STORAGE_PERMISSION && grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingDownload?.let {
+                performDownload(it.first, it.second, it.third)
+                pendingDownload = null
+            }
         } else {
-            // 使用系统 API
-            window.statusBarColor = statusColor
-            window.navigationBarColor = navColor
-            removeOverlay("status_bar_overlay")
-            removeOverlay("nav_bar_overlay")
-            WindowCompat.setDecorFitsSystemWindows(window, true) // 恢复内容不延伸
-
-            // 系统 API 自动处理图标颜色，但为了统一，也调用一次
-            setSystemBarIconColor(statusColor, navColor)
+            Toast.makeText(this, "存储权限被拒绝，无法下载文件", Toast.LENGTH_SHORT).show()
         }
     }
 
-    /**
-     * 设置状态栏/导航栏图标颜色（浅色背景 -> 深色图标，深色背景 -> 浅色图标）
-     */
-    private fun setSystemBarIconColor(statusColor: Int, navColor: Int) {
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        val isLight = Color.luminance(statusColor) > 0.5
-        windowInsetsController.isAppearanceLightStatusBars = isLight
-        // 导航栏图标颜色通常跟随状态栏，但也可以单独判断
-        val isNavLight = Color.luminance(navColor) > 0.5
-        windowInsetsController.isAppearanceLightNavigationBars = isNavLight
-    }
+    private fun performDownload(url: String, fileplace: String, filename: String) {
+        Thread {
+            try {
+                // 创建目录
+                val dir = File(fileplace)
+                if (!dir.exists()) dir.mkdirs()
+                val file = File(dir, filename)
 
-    // ========== 辅助方法（获取高度、添加/移除覆盖层） ==========
-    private fun getStatusBarHeight(): Int {
-        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (resourceId > 0) {
-            resources.getDimensionPixelSize(resourceId)
-        } else {
-            TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                24f,
-                resources.displayMetrics
-            ).toInt()
-        }
-    }
+                // 下载文件
+                val connection = URL(url).openConnection()
+                connection.connect()
+                val inputStream = connection.getInputStream()
+                val outputStream = FileOutputStream(file)
+                val buffer = ByteArray(1024)
+                var bytesRead: Int
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    outputStream.write(buffer, 0, bytesRead)
+                }
+                outputStream.close()
+                inputStream.close()
 
-    private fun getNavigationBarHeight(): Int {
-        val resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
-        return if (resourceId > 0) {
-            resources.getDimensionPixelSize(resourceId)
-        } else {
-            TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                48f,
-                resources.displayMetrics
-            ).toInt()
-        }
-    }
-
-    private fun addStatusBarOverlay(color: Int) {
-        val statusBarHeight = getStatusBarHeight()
-        if (statusBarHeight <= 0) return
-
-        // 使用 decorView 作为父容器，确保覆盖层在最上层
-        val decorView = window.decorView as ViewGroup
-        val statusBarOverlay = View(this).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                resources.displayMetrics.widthPixels,
-                statusBarHeight
-            )
-            setBackgroundColor(color)
-            tag = "status_bar_overlay"
-        }
-        decorView.addView(statusBarOverlay)
-    }
-
-    private fun addNavigationBarOverlay(color: Int) {
-        val navBarHeight = getNavigationBarHeight()
-        if (navBarHeight <= 0) return
-
-        val decorView = window.decorView as ViewGroup
-        val navBarOverlay = View(this).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                navBarHeight,
-                android.view.Gravity.BOTTOM
-            )
-            setBackgroundColor(color)
-            tag = "nav_bar_overlay"
-        }
-        decorView.addView(navBarOverlay)
-    }
-
-    private fun removeOverlay(tag: String) {
-        val decorView = window.decorView as? ViewGroup ?: return
-        decorView.findViewWithTag<View>(tag)?.let { decorView.removeView(it) }
+                // 在主线程显示 Toast
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "下载完成，文件位置：$fileplace",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                runOnUiThread {
+                    Toast.makeText(this, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
     }
 }
