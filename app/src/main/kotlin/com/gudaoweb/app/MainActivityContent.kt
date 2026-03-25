@@ -10,11 +10,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStreamReader
-import java.io.BufferedReader
 
 @Composable
 fun MainActivityContent() {
@@ -34,8 +34,9 @@ fun MainActivityContent() {
                     useWideViewPort = true
                 }
 
-                // 创建 JavaScript 接口实例，并传入当前 WebView 引用
-                val jsInterface = JavaScriptInterface(context).apply { setWebView(this@apply) }
+                // 创建 JavaScript 接口实例并关联当前 WebView
+                val jsInterface = JavaScriptInterface(context)
+                jsInterface.setWebView(this)  // 正确传递 WebView 实例
                 addJavascriptInterface(jsInterface, "Android")
 
                 webViewClient = object : WebViewClient() {
