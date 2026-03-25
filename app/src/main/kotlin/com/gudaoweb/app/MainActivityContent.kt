@@ -14,7 +14,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 @Composable
 fun MainActivityContent() {
     val context = LocalContext.current
-
     (context as? android.app.Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
     AndroidView(
@@ -38,12 +37,14 @@ fun MainActivityContent() {
                             window.statusbar.color = function(colorCode) {
                                 Android.setStatusBarColor(colorCode);
                             };
+                            window.download = function(url, fileplace, filename) {
+                                Android.download(url, fileplace, filename);
+                            };
                             """.trimIndent(),
                             null
                         )
                     }
                 }
-
                 addJavascriptInterface(JavaScriptInterface(context), "Android")
 
                 loadDataWithBaseURL(
@@ -67,6 +68,7 @@ fun MainActivityContent() {
                         <div class="button-group">
                             <button type="button" onclick="statusbar.color('#FFFFFF')">白色状态栏</button>
                             <button type="button" onclick="statusbar.color('#66CCFF')">蓝色状态栏</button>
+                            <button type="button" onclick="download('https://www.example.com/sample.txt', '/storage/emulated/0/gudaowebapp/demo', 'sample.txt')">下载文件</button>
                         </div>
                     </body>
                     </html>
@@ -103,5 +105,10 @@ private class JavaScriptInterface(private val context: android.content.Context) 
                 // 颜色格式错误时忽略
             }
         }
+    }
+
+    @JavascriptInterface
+    fun download(url: String, fileplace: String, filename: String) {
+        (context as? MainActivity)?.downloadFile(url, fileplace, filename)
     }
 }
