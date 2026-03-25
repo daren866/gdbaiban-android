@@ -95,11 +95,12 @@ private class JavaScriptInterface(private val context: android.content.Context) 
 
     @JavascriptInterface
     fun setStatusBarColor(colorCode: String) {
-        (context as? MainActivity)?.runOnUiThread {
+        val activity = context as? MainActivity ?: return
+        activity.runOnUiThread {
             try {
                 val color = Color.parseColor(colorCode)
-                // 状态栏和导航栏都设置为同一颜色
-                setStatusBarColorFromWeb(color, color)
+                // 调用 MainActivity 中的方法
+                activity.setStatusBarColorFromWeb(color, color)
             } catch (e: Exception) {
                 // 颜色格式错误时忽略
             }
