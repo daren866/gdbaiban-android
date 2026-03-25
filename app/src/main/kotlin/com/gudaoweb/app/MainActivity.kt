@@ -1,90 +1,124 @@
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Environment
-import android.widget.Toast
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import java.io.File
-import java.io.FileOutputStream
-import java.net.URL
+package com.gudaoweb.app
+
+import android.graphics.Color
+import android.os.Build
+import android.os.Bundle
+import android.util.TypedValue
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
 
 class MainActivity : ComponentActivity() {
-    // ... 已有代码 ...
 
-    // 请求码
-    private val REQUEST_STORAGE_PERMISSION = 1001
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-    // 供 JavaScript 调用的下载方法
-    fun downloadFile(url: String, fileplace: String, filename: String) {
-        // 检查存储权限
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            // 请求权限，并将参数保存
-            requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), REQUEST_STORAGE_PERMISSION)
-            // 保存参数以便权限回调后使用
-            pendingDownload = Triple(url, fileplace, filename)
-            return
+        // 初始设置状态栏颜色
+        setStatusBarColorFromWeb(Color.parseColor("#66CCFF"), Color.parseColor("#66CCFF"))
+
+        setContent {
+            MainActivityContent()
         }
-        // 已有权限，执行下载
-        performDownload(url, fileplace, filename)
     }
 
-    private var pendingDownload: Triple<String, String, String>? = null
+    // 供 JavaScript 调用的公开方法
+    fun setStatusBarColorFromWeb(statusColor: Int, navColor: Int? = null) {
+        setStatusBarColorCompat(statusColor, navColor ?: statusColor)
+    }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_STORAGE_PERMISSION && grantResults.isNotEmpty() &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED
-        ) {
-            pendingDownload?.let {
-                performDownload(it.first, it.second, it.third)
-                pendingDownload = null
-            }
+    // 版本兼容的核心方法
+    private fun setStatusBarColorCompat(statusColor: Int, navColor: Int) {
+        if (Build.VERSION.SDK_INT >= 36) { // Android 16 = API 36
+            // 使用自定义 View 方案
+            window.statusBarColor = Color.TRANSPARENT
+            window.navigationBarColor = Color.TRANSPARENT
+            // 移除旧覆盖层
+            removeOverlay("status_bar_overlay")
+            removeOverlay("nav_bar_overlay")
+            // 添加新覆盖层
+            addStatusBarOverlay(statusColor)
+            addNavigationBarOverlay(navColor)
         } else {
-            Toast.makeText(this, "存储权限被拒绝，无法下载文件", Toast.LENGTH_SHORT).show()
+            // 使用系统 API
+            window.statusBarColor = statusColor
+            window.navigationBarColor = navColor
+            // 确保移除可能遗留的自定义 View
+            removeOverlay("status_bar_overlay")
+            removeOverlay("nav_bar_overlay")
+            // 确保内容不延伸
+            WindowCompat.setDecorFitsSystemWindows(window, true)
         }
     }
 
-    private fun performDownload(url: String, fileplace: String, filename: String) {
-        Thread {
-            try {
-                // 创建目录
-                val dir = File(fileplace)
-                if (!dir.exists()) dir.mkdirs()
-                val file = File(dir, filename)
+    // 辅助方法：获取状态栏高度
+    private fun getStatusBarHeight(): Int {
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (resourceId > 0) {
+            resources.getDimensionPixelSize(resourceId)
+        } else {
+            TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                24f,
+                resources.displayMetrics
+            ).toInt()
+        }
+    }
 
-                // 下载文件
-                val connection = URL(url).openConnection()
-                connection.connect()
-                val inputStream = connection.getInputStream()
-                val outputStream = FileOutputStream(file)
-                val buffer = ByteArray(1024)
-                var bytesRead: Int
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    outputStream.write(buffer, 0, bytesRead)
-                }
-                outputStream.close()
-                inputStream.close()
+    // 辅助方法：获取导航栏高度
+    private fun getNavigationBarHeight(): Int {
+        val resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        return if (resourceId > 0) {
+            resources.getDimensionPixelSize(resourceId)
+        } else {
+            TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                48f,
+                resources.displayMetrics
+            ).toInt()
+        }
+    }
 
-                // 在主线程显示 Toast
-                runOnUiThread {
-                    Toast.makeText(
-                        this,
-                        "下载完成，文件位置：$fileplace",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                runOnUiThread {
-                    Toast.makeText(this, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }.start()
+    // 添加状态栏覆盖层
+    private fun addStatusBarOverlay(color: Int) {
+        val statusBarHeight = getStatusBarHeight()
+        if (statusBarHeight <= 0) return
+
+        val rootView = window.decorView.findViewById<ViewGroup>(android.R.id.content)
+        val statusBarOverlay = View(this).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                resources.displayMetrics.widthPixels,
+                statusBarHeight
+            )
+            setBackgroundColor(color)
+            tag = "status_bar_overlay"
+        }
+        rootView.addView(statusBarOverlay)
+    }
+
+    // 添加导航栏覆盖层
+    private fun addNavigationBarOverlay(color: Int) {
+        val navBarHeight = getNavigationBarHeight()
+        if (navBarHeight <= 0) return
+
+        val rootView = window.decorView.findViewById<ViewGroup>(android.R.id.content)
+        val navBarOverlay = View(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                navBarHeight,
+                android.view.Gravity.BOTTOM
+            )
+            setBackgroundColor(color)
+            tag = "nav_bar_overlay"
+        }
+        rootView.addView(navBarOverlay)
+    }
+
+    // 移除指定 tag 的覆盖层
+    private fun removeOverlay(tag: String) {
+        val rootView = window.decorView.findViewById<ViewGroup>(android.R.id.content)
+        rootView.findViewWithTag<View>(tag)?.let { rootView.removeView(it) }
     }
 }
