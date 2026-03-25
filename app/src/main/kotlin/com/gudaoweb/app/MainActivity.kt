@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -20,10 +21,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 初始设置（兼容版本判断在方法内部）
-        setStatusBarColorCompat(Color.parseColor(defaultStatusBarColor), Color.parseColor(defaultNavBarColor))
+        setStatusBarColorCompat(
+            Color.parseColor(defaultStatusBarColor),
+            Color.parseColor(defaultNavBarColor)
+        )
 
-        // 确保系统栏独立显示，内容不覆盖它们（设为 true，后续自定义View方案中会保持不变）
         WindowCompat.setDecorFitsSystemWindows(window, true)
 
         setContent {
@@ -31,14 +33,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * 供 JavaScript 调用的公开方法，用于动态改变系统栏颜色
-     */
     fun setStatusBarColorFromWeb(statusColor: Int, navColor: Int? = null) {
         setStatusBarColorCompat(statusColor, navColor ?: statusColor)
     }
 
-    // ========== 版本兼容核心方法 ==========
+    // 版本兼容核心方法
     private fun setStatusBarColorCompat(statusColor: Int, navColor: Int) {
         if (Build.VERSION.SDK_INT >= 36) { // Android 16 = API 36
             // 使用自定义View方案
@@ -54,7 +53,7 @@ class MainActivity : ComponentActivity() {
             // 使用系统API
             window.statusBarColor = statusColor
             window.navigationBarColor = navColor
-            // 确保移除可能遗留的自定义View
+            // 移除可能遗留的自定义View
             removeOverlay("status_bar_overlay")
             removeOverlay("nav_bar_overlay")
             // 确保内容不延伸
@@ -62,7 +61,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ========== 辅助方法（获取高度、添加/移除覆盖层） ==========
+    // 获取状态栏高度
     private fun getStatusBarHeight(): Int {
         val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (resourceId > 0) {
@@ -76,6 +75,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // 获取导航栏高度
     private fun getNavigationBarHeight(): Int {
         val resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
         return if (resourceId > 0) {
@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // 添加状态栏覆盖层
     private fun addStatusBarOverlay(color: Int) {
         val statusBarHeight = getStatusBarHeight()
         if (statusBarHeight <= 0) return
@@ -105,17 +106,17 @@ class MainActivity : ComponentActivity() {
         rootView.addView(statusBarOverlay)
     }
 
+    // 添加导航栏覆盖层（修正版：使用 FrameLayout.LayoutParams 并设置 Gravity.BOTTOM）
     private fun addNavigationBarOverlay(color: Int) {
         val navBarHeight = getNavigationBarHeight()
         if (navBarHeight <= 0) return
 
         val rootView = window.decorView.findViewById<ViewGroup>(android.R.id.content)
         val navBarOverlay = View(this).apply {
-            // 导航栏需定位到底部
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 navBarHeight,
-                android.view.Gravity.BOTTOM
+                Gravity.BOTTOM
             )
             setBackgroundColor(color)
             tag = "nav_bar_overlay"
@@ -123,6 +124,7 @@ class MainActivity : ComponentActivity() {
         rootView.addView(navBarOverlay)
     }
 
+    // 移除覆盖层
     private fun removeOverlay(tag: String) {
         val rootView = window.decorView.findViewById<ViewGroup>(android.R.id.content)
         rootView.findViewWithTag<View>(tag)?.let { rootView.removeView(it) }
