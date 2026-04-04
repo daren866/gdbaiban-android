@@ -2,26 +2,51 @@ package com.gudaoweb.app
 
 import android.content.pm.ActivityInfo
 import android.graphics.Color
+import android.os.Build
+import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStreamReader
 
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // 强制竖屏
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        setContent {
+            MainActivityContent()
+        }
+    }
+
+    // 供 JavaScriptInterface 调用的状态栏颜色设置方法
+    fun setStatusBarColorFromWeb(color: Int) {
+        runOnUiThread {
+            window.statusBarColor = color
+            // 深色文字适配（可选）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val isLight = (Color.red(color) * 0.299 + Color.green(color) * 0.587 + Color.blue(color) * 0.114) > 186
+                WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = isLight
+            }
+        }
+    }
+}
+
 @Composable
 fun MainActivityContent() {
     val context = LocalContext.current
-
-    // 强制竖屏
-    (context as? android.app.Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
     AndroidView(
         modifier = Modifier.fillMaxSize(),
@@ -34,14 +59,14 @@ fun MainActivityContent() {
                     useWideViewPort = true
                 }
 
-                // 创建 JavaScript 接口实例并关联当前 WebView
-                val jsInterface = JavaScriptInterface(context)
-                jsInterface.setWebView(this)  // 正确传递 WebView 实例
+                // 注入 JavaScript 接口
+                val jsInterface = JavaScriptInterface(context as MainActivity)
+                jsInterface.setWebView(this)
                 addJavascriptInterface(jsInterface, "Android")
 
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        // 注入全局 JavaScript 函数
+                        // 注入全局辅助对象，使用回调函数名方式调用文件读写
                         view?.evaluateJavascript(
                             """
                             window.dialog = function(message, title) {
@@ -51,12 +76,14 @@ fun MainActivityContent() {
                             window.statusbar.color = function(colorCode) {
                                 Android.setStatusBarColor(colorCode);
                             };
+                            
+                            // 文件操作：使用回调函数名，避免直接传递函数对象
                             window.file = {
-                                write: function(fileName, content, callback) {
-                                    Android.writeFile(fileName, content, callback);
+                                write: function(fileName, content, callbackName) {
+                                    Android.writeFile(fileName, content, callbackName);
                                 },
-                                read: function(fileName, callback) {
-                                    Android.readFile(fileName, callback);
+                                read: function(fileName, callbackName) {
+                                    Android.readFile(fileName, callbackName);
                                 }
                             };
                             """.trimIndent(),
@@ -65,7 +92,7 @@ fun MainActivityContent() {
                     }
                 }
 
-                // 加载 HTML 内容（包含文件读写测试按钮）
+                // 加载 HTML 页面（包含修正后的文件读写按钮）
                 loadDataWithBaseURL(
                     null,
                     """
@@ -79,6 +106,7 @@ fun MainActivityContent() {
                             button { margin-top: 12px; padding: 8px 16px; font-size: 16px; margin-right: 8px; }
                             .button-group { margin-top: 12px; }
                             textarea { margin-top: 12px; width: 100%; padding: 8px; box-sizing: border-box; }
+                            #fileStatus { margin-top: 8px; color: #333; }
                         </style>
                     </head>
                     <body>
@@ -96,25 +124,30 @@ fun MainActivityContent() {
                         <textarea id="fileContent" rows="4" placeholder="文件内容..."></textarea>
                         <div id="fileStatus"></div>
                         <script>
+                            // 定义全局回调函数，供 Android 调用
+                            window.fileWriteCallback = function(error, result) {
+                                if (error) {
+                                    document.getElementById('fileStatus').innerHTML = '保存失败: ' + error;
+                                } else {
+                                    document.getElementById('fileStatus').innerHTML = '保存成功: ' + result;
+                                }
+                            };
+                            window.fileReadCallback = function(error, content) {
+                                if (error) {
+                                    document.getElementById('fileStatus').innerHTML = '读取失败: ' + error;
+                                } else {
+                                    document.getElementById('fileStatus').innerHTML = '读取成功，内容: ' + content;
+                                    document.getElementById('fileContent').value = content;
+                                }
+                            };
+                            
                             function saveFile() {
                                 var content = document.getElementById('fileContent').value;
-                                file.write('test.txt', content, function(error, result) {
-                                    if (error) {
-                                        document.getElementById('fileStatus').innerHTML = '保存失败: ' + error;
-                                    } else {
-                                        document.getElementById('fileStatus').innerHTML = '保存成功: ' + result;
-                                    }
-                                });
+                                // 传递回调函数的名字符串
+                                file.write('test.txt', content, 'fileWriteCallback');
                             }
                             function loadFile() {
-                                file.read('test.txt', function(error, content) {
-                                    if (error) {
-                                        document.getElementById('fileStatus').innerHTML = '读取失败: ' + error;
-                                    } else {
-                                        document.getElementById('fileStatus').innerHTML = '读取成功，内容: ' + content;
-                                        document.getElementById('fileContent').value = content;
-                                    }
-                                });
+                                file.read('test.txt', 'fileReadCallback');
                             }
                         </script>
                     </body>
@@ -130,9 +163,10 @@ fun MainActivityContent() {
 }
 
 /**
- * JavaScript 接口类，提供原生功能
+ * JavaScript 接口实现
+ * 注意：所有 @JavascriptInterface 方法都在子线程执行，UI 操作需切换线程
  */
-private class JavaScriptInterface(private val context: android.content.Context) {
+private class JavaScriptInterface(private val activity: MainActivity) {
     private var webView: WebView? = null
 
     fun setWebView(webView: WebView) {
@@ -141,8 +175,8 @@ private class JavaScriptInterface(private val context: android.content.Context) 
 
     @JavascriptInterface
     fun showDialog(title: String, message: String) {
-        (context as? android.app.Activity)?.runOnUiThread {
-            android.app.AlertDialog.Builder(context)
+        activity.runOnUiThread {
+            android.app.AlertDialog.Builder(activity)
                 .setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("确定") { dialog, _ -> dialog.dismiss() }
@@ -152,39 +186,48 @@ private class JavaScriptInterface(private val context: android.content.Context) 
 
     @JavascriptInterface
     fun setStatusBarColor(colorCode: String) {
-        val activity = context as? MainActivity ?: return
-        activity.runOnUiThread {
-            try {
-                val color = Color.parseColor(colorCode)
-                activity.setStatusBarColorFromWeb(color, color)
-            } catch (e: Exception) {
-                // 忽略颜色格式错误
-            }
+        try {
+            val color = Color.parseColor(colorCode)
+            activity.setStatusBarColorFromWeb(color)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
+    /**
+     * 写入文件
+     * @param fileName 文件名
+     * @param content  文件内容
+     * @param callbackName JavaScript 全局回调函数的名字符串
+     */
     @JavascriptInterface
-    fun writeFile(fileName: String, content: String, callback: String) {
+    fun writeFile(fileName: String, content: String, callbackName: String) {
         Thread {
             try {
-                val file = File(context.filesDir, fileName)
+                val file = File(activity.filesDir, fileName)
                 FileOutputStream(file).use { fos ->
                     fos.write(content.toByteArray())
                 }
-                evaluateJavascript(callback, true, "写入成功")
+                // 成功：调用 callbackName(null, result)
+                evaluateJavascript("$callbackName(null, ${escapeJsString("写入成功")})")
             } catch (e: Exception) {
-                evaluateJavascript(callback, false, e.message)
+                evaluateJavascript("$callbackName(${escapeJsString(e.message ?: "未知错误")}, null)")
             }
         }.start()
     }
 
+    /**
+     * 读取文件
+     * @param fileName 文件名
+     * @param callbackName JavaScript 全局回调函数的名字符串
+     */
     @JavascriptInterface
-    fun readFile(fileName: String, callback: String) {
+    fun readFile(fileName: String, callbackName: String) {
         Thread {
             try {
-                val file = File(context.filesDir, fileName)
+                val file = File(activity.filesDir, fileName)
                 if (!file.exists()) {
-                    evaluateJavascript(callback, false, "文件不存在")
+                    evaluateJavascript("$callbackName(${escapeJsString("文件不存在")}, null)")
                     return@Thread
                 }
                 val content = FileInputStream(file).use { fis ->
@@ -192,20 +235,15 @@ private class JavaScriptInterface(private val context: android.content.Context) 
                         reader.readText()
                     }
                 }
-                evaluateJavascript(callback, true, content)
+                evaluateJavascript("$callbackName(null, ${escapeJsString(content)})")
             } catch (e: Exception) {
-                evaluateJavascript(callback, false, e.message)
+                evaluateJavascript("$callbackName(${escapeJsString(e.message ?: "读取失败")}, null)")
             }
         }.start()
     }
 
-    private fun evaluateJavascript(callback: String, success: Boolean, result: String?) {
+    private fun evaluateJavascript(js: String) {
         webView?.post {
-            val js = if (success) {
-                "$callback(null, ${escapeJsString(result ?: "")})"
-            } else {
-                "$callback(${escapeJsString(result ?: "未知错误")}, null)"
-            }
             webView?.evaluateJavascript(js, null)
         }
     }
