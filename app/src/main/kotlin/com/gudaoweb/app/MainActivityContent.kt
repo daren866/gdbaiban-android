@@ -191,7 +191,7 @@ private class JavaScriptInterface(private val context: android.content.Context) 
         activity.runOnUiThread {
             try {
                 val color = Color.parseColor(colorCode)
-                activity.setStatusBarColorFromWeb(color, color)
+                activity.setStatusBarColorFromWeb(color)
             } catch (e: Exception) {
                 // 忽略颜色格式错误
             }
