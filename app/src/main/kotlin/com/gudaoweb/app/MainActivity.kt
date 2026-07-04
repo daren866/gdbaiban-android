@@ -56,7 +56,12 @@ class MainActivity : ComponentActivity() {
 
     fun setStatusBarColorFromWeb(color: Int) {
         runOnUiThread {
-            window.statusBarColor = color
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowInsetsControllerCompat(window, window.decorView).setStatusBarColor(color)
+            } else {
+                @Suppress("DEPRECATION")
+                window.statusBarColor = color
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val isLight = (Color.red(color) * 0.299 + Color.green(color) * 0.587 + Color.blue(color) * 0.114) > 186
                 WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = isLight
