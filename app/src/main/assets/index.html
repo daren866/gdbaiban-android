@@ -3,17 +3,19 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <!-- We only include this to explicitly loosen the CSP of various packager environments. It does not provide any security. -->
   <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:">
   <title>gudaobaiban</title>
   <style>
-    body {
+    html, body {
       color: #000000;
       font-family: sans-serif;
       overflow: hidden;
       margin: 0;
       padding: 0;
+      width: 100%;
+      height: 100%;
     }
     :root, body.is-fullscreen {
       background-color: #f3f3f3;
@@ -36,6 +38,7 @@
       left: 0;
       width: 100%;
       height: 100%;
+      box-sizing: border-box;
     }
     .screen {
       display: flex;
@@ -65,7 +68,7 @@
       box-sizing: border-box;
     }
     #loading {
-      
+      background-color: #f3f3f3;
     }
     .progress-bar-outer {
       border: 1px solid currentColor;
@@ -226,13 +229,18 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
       setProgress(0.1);
 
       const scaffolding = new Scaffolding.Scaffolding();
-      scaffolding.width = 640;
-      scaffolding.height = 360;
-      scaffolding.resizeMode = "preserve-ratio";
+      scaffolding.width = window.innerWidth;
+      scaffolding.height = window.innerHeight;
+      scaffolding.resizeMode = "cover";
       scaffolding.editableLists = false;
       scaffolding.usePackagedRuntime = true;
       scaffolding.setup();
       scaffolding.appendTo(appElement);
+
+      window.addEventListener('resize', () => {
+        scaffolding.width = window.innerWidth;
+        scaffolding.height = window.innerHeight;
+      });
 
       const vm = scaffolding.vm;
       window.scaffolding = scaffolding;
