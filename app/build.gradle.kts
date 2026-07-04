@@ -57,7 +57,7 @@ android {
 
 base {
     val timestamp = System.currentTimeMillis()
-    archivesName.set("Gudaobaiban-${timestamp}")
+    archivesName.set("Gudaobaiban-v${android.defaultConfig.versionName}(${android.defaultConfig.versionCode})")
 }
 
 dependencies {

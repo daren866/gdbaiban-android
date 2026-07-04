@@ -56,9 +56,8 @@ android {
 }
 
 base {
-    val buildDate = java.text.SimpleDateFormat("yyyyMMdd").format(java.util.Date())
-    val randomNum = java.util.Random().nextInt(9999) + 1
-    archivesName.set("Gudaobaiban-${buildDate}-${randomNum}")
+    val timestamp = System.currentTimeMillis()
+    archivesName.set("Gudaobaiban-${timestamp}")
 }
 
 dependencies {
