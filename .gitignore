@@ -1,0 +1,7 @@
+.kotlin
+.gradle
+.idea
+build
+build-cache
+generated
+local.properties
