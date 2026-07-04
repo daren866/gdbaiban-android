@@ -231,13 +231,18 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
       setProgress(0.1);
 
       const scaffolding = new Scaffolding.Scaffolding();
-      scaffolding.width = 640;
-      scaffolding.height = 360;
-      scaffolding.resizeMode = "preserve-ratio";
+      scaffolding.width = window.innerWidth;
+      scaffolding.height = window.innerHeight;
+      scaffolding.resizeMode = "cover";
       scaffolding.editableLists = false;
       scaffolding.usePackagedRuntime = true;
       scaffolding.setup();
       scaffolding.appendTo(appElement);
+
+      window.addEventListener('resize', () => {
+        scaffolding.width = window.innerWidth;
+        scaffolding.height = window.innerHeight;
+      });
 
       const vm = scaffolding.vm;
       window.scaffolding = scaffolding;

@@ -108,18 +108,6 @@ fun MainActivityContent() {
                                     Android.saveImage(base64Data, callback);
                                 }
                             };
-                            setTimeout(function() {
-                                var app = document.getElementById('app');
-                                if (app) {
-                                    app.style.width = '100%';
-                                    app.style.height = '100%';
-                                }
-                                var canvas = document.querySelector('.sc-canvas');
-                                if (canvas) {
-                                    canvas.style.maxWidth = '100%';
-                                    canvas.style.maxHeight = '100%';
-                                }
-                            }, 500);
                             """.trimIndent(),
                             null
                         )
