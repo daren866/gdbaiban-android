@@ -57,7 +57,7 @@ android {
 
 base {
     val timestamp = System.currentTimeMillis()
-    archivesName.set("Gudaobaiban-${timestamp}")
+    archivesName.set("Gudaobaiban-v${android.defaultConfig.versionName}(${android.defaultConfig.versionCode})")
 }
 
 dependencies {
@@ -66,6 +66,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 }
 
 tasks.register("printVersion") {
