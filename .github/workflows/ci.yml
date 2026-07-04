@@ -24,17 +24,17 @@ jobs:
     env:
       OLD_PACKAGE: "org.michaelbel.myapplication"
       OLD_PATH: "org/michaelbel/myapplication"
+      NEW_PACKAGE: "${{ github.event.inputs.new_package_name }}"
+      NEW_PATH: ""
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set new package variables
+      - name: Set new path variable
         run: |
-          NEW_PACKAGE="${{ github.event.inputs.new_package_name }}"
-          echo "NEW_PACKAGE=$NEW_PACKAGE" >> $GITHUB_ENV
-          NEW_PATH=$(echo $NEW_PACKAGE | tr '.' '/')
+          NEW_PATH=$(echo "${{ env.NEW_PACKAGE }}" | tr '.' '/')
           echo "NEW_PATH=$NEW_PATH" >> $GITHUB_ENV
 
       - name: Create new directory structure
