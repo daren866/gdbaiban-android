@@ -17,10 +17,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.core.view.WindowInsetsControllerCompat
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
@@ -59,13 +60,11 @@ fun MainActivityContent() {
                         super.onShowCustomView(view, callback)
                         val activity = context as? android.app.Activity
                         activity?.runOnUiThread {
-                            activity.window.decorView.systemUiVisibility = (
-                                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                                or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            )
+                            activity.window.setDecorFitsSystemWindows(false)
+                            WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
+                                hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+                                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                            }
                         }
                     }
 
@@ -73,13 +72,11 @@ fun MainActivityContent() {
                         super.onHideCustomView()
                         val activity = context as? android.app.Activity
                         activity?.runOnUiThread {
-                            activity.window.decorView.systemUiVisibility = (
-                                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                                or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            )
+                            activity.window.setDecorFitsSystemWindows(false)
+                            WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
+                                hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+                                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                            }
                         }
                     }
                 }
@@ -132,13 +129,11 @@ fun MainActivityContent() {
             when (event) {
                 Lifecycle.Event.ON_START -> {
                     activity?.runOnUiThread {
-                        activity.window.decorView.systemUiVisibility = (
-                            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                            or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        )
+                        activity.window.setDecorFitsSystemWindows(false)
+                        WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
+                            hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+                            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        }
                     }
                 }
                 else -> {}
