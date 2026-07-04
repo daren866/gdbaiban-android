@@ -18,10 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.foundation.layout.systemBarsPadding
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
@@ -38,7 +35,7 @@ fun MainActivityContent() {
     (context as? android.app.Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
     AndroidView(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().systemBarsPadding(),
         factory = { ctx ->
             WebView(ctx).apply {
                 settings.apply {
@@ -58,26 +55,10 @@ fun MainActivityContent() {
                 webChromeClient = object : WebChromeClient() {
                     override fun onShowCustomView(view: android.view.View?, callback: WebChromeClient.CustomViewCallback?) {
                         super.onShowCustomView(view, callback)
-                        val activity = context as? android.app.Activity
-                        activity?.runOnUiThread {
-                            activity.window.setDecorFitsSystemWindows(false)
-                            WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
-                                hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
-                                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                            }
-                        }
                     }
 
                     override fun onHideCustomView() {
                         super.onHideCustomView()
-                        val activity = context as? android.app.Activity
-                        activity?.runOnUiThread {
-                            activity.window.setDecorFitsSystemWindows(false)
-                            WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
-                                hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
-                                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                            }
-                        }
                     }
                 }
 
@@ -123,27 +104,7 @@ fun MainActivityContent() {
         }
     )
 
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            val activity = context as? android.app.Activity
-            when (event) {
-                Lifecycle.Event.ON_START -> {
-                    activity?.runOnUiThread {
-                        activity.window.setDecorFitsSystemWindows(false)
-                        WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
-                            hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
-                            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                        }
-                    }
-                }
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
+    
 }
 
 /**
