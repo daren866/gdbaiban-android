@@ -12,9 +12,14 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
@@ -26,8 +31,8 @@ import android.util.Base64
 @Composable
 fun MainActivityContent() {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    // 强制竖屏
     (context as? android.app.Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
     AndroidView(
@@ -39,17 +44,17 @@ fun MainActivityContent() {
                     domStorageEnabled = true
                     loadWithOverviewMode = true
                     useWideViewPort = true
-                    layoutAlgorithm = android.webkit.WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+                    layoutAlgorithm = android.webkit.WebSettings.LayoutAlgorithm.NORMAL
+                    setInitialScale(0)
+                    textZoom = 100
                 }
 
-                // 创建 JavaScript 接口实例并关联当前 WebView
                 val jsInterface = JavaScriptInterface(context)
-                jsInterface.setWebView(this)  // 正确传递 WebView 实例
+                jsInterface.setWebView(this)
                 addJavascriptInterface(jsInterface, "Android")
 
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        // 注入全局 JavaScript 函数
                         view?.evaluateJavascript(
                             """
                             window.dialog = function(message, title) {
@@ -78,11 +83,41 @@ fun MainActivityContent() {
                     }
                 }
 
-                // 加载 assets 目录下的 HTML 文件
                 loadUrl("file:///android_asset/index.html")
+            }
+        },
+        update = { webView ->
+            webView.settings.apply {
+                loadWithOverviewMode = true
+                useWideViewPort = true
+                setInitialScale(0)
             }
         }
     )
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            val activity = context as? android.app.Activity
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    activity?.runOnUiThread {
+                        activity.window.decorView.systemUiVisibility = (
+                            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                            or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        )
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 }
 
 /**
