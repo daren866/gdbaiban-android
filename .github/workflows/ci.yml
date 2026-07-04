@@ -141,8 +141,8 @@ jobs:
       - name: Create Release and upload APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION_NAME }}-${{ env.VERSION_CODE }}
-          name: v${{ env.VERSION_NAME }} (${{ env.VERSION_CODE }})
+          tag_name: v${{ env.VERSION_NAME }}-${{ github.run_id }}
+          name: v${{ env.VERSION_NAME }} (build ${{ github.run_id }})
           body: |
             ## 包名已更改为 ${{ env.NEW_PACKAGE }}
             
@@ -150,7 +150,7 @@ jobs:
             
             **构建时间:** $(date -u +"%Y-%m-%dT%H:%M:%SZ")
             
-            **版本信息:** ${{ env.VERSION_NAME }} (code ${{ env.VERSION_CODE }})
+            **版本信息:** ${{ env.VERSION_NAME }}
           prerelease: ${{ github.event.inputs.release_type == 'pre' }}
           files: ${{ env.APK_PATH }}
           overwrite: true
