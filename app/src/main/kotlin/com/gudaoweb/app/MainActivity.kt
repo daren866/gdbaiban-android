@@ -11,12 +11,12 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import java.io.BufferedReader
@@ -30,6 +30,21 @@ const val REQUEST_CODE_WRITE_STORAGE = 1001
 class MainActivity : ComponentActivity() {
     private var pendingSaveImageCallback: ((Boolean, String) -> Unit)? = null
     private var pendingSaveImageBase64: String? = null
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        val callback = pendingSaveImageCallback
+        val base64Data = pendingSaveImageBase64
+        pendingSaveImageCallback = null
+        pendingSaveImageBase64 = null
+
+        if (isGranted) {
+            callback?.invoke(true, "")
+        } else {
+            callback?.invoke(false, "存储权限被拒绝")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,36 +71,12 @@ class MainActivity : ComponentActivity() {
             ) {
                 pendingSaveImageCallback = callback
                 pendingSaveImageBase64 = base64Data
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                    REQUEST_CODE_WRITE_STORAGE
-                )
+                requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             } else {
                 callback(true, "")
             }
         } else {
             callback(true, "")
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE_WRITE_STORAGE) {
-            val callback = pendingSaveImageCallback
-            val base64Data = pendingSaveImageBase64
-            pendingSaveImageCallback = null
-            pendingSaveImageBase64 = null
-
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                callback?.invoke(true, "")
-            } else {
-                callback?.invoke(false, "存储权限被拒绝")
-            }
         }
     }
 }
