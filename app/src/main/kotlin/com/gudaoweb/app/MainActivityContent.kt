@@ -90,8 +90,8 @@ fun MainActivityContent() {
             webView.settings.apply {
                 loadWithOverviewMode = true
                 useWideViewPort = true
-                setInitialScale(0)
             }
+            webView.setInitialScale(0)
         }
     )
 
