@@ -56,7 +56,9 @@ android {
 }
 
 base {
-    archivesName.set("Gudaobaiban-v${android.defaultConfig.versionName}(${android.defaultConfig.versionCode})")
+    val buildDate = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
+    val randomNum = kotlin.random.Random.nextInt(1, 10000)
+    archivesName.set("Gudaobaiban-${buildDate}-${randomNum}")
 }
 
 dependencies {
