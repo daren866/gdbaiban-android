@@ -6,11 +6,11 @@ on:
       new_package_name:
         description: '新包名 (例如: com.gudaoweb.app)'
         required: true
-        default: 'com.gudaoweb.app'
+        default: 'com.gudaobaiban'
       commit_message:
         description: '提交信息'
         required: true
-        default: 'Change package name to com.gudaoweb.app'
+        default: 'Change package name to com.gudaobaiban'
       release_type:
         description: '发布类型 (pre=预发布版，其他=正式版)'
         required: true
