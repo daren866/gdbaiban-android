@@ -28,7 +28,7 @@ fun MainActivityContent() {
     val context = LocalContext.current
 
     // 强制竖屏
-    (context as? android.app.Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    (context as? android.app.Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
     AndroidView(
         modifier = Modifier.fillMaxSize(),
