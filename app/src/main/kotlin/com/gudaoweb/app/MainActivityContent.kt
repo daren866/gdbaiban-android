@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,6 +54,36 @@ fun MainActivityContent() {
                 jsInterface.setWebView(this)
                 addJavascriptInterface(jsInterface, "Android")
 
+                webChromeClient = object : WebChromeClient() {
+                    override fun onShowCustomView(view: android.view.View?, callback: WebChromeClient.CustomViewCallback?) {
+                        super.onShowCustomView(view, callback)
+                        val activity = context as? android.app.Activity
+                        activity?.runOnUiThread {
+                            activity.window.decorView.systemUiVisibility = (
+                                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            )
+                        }
+                    }
+
+                    override fun onHideCustomView() {
+                        super.onHideCustomView()
+                        val activity = context as? android.app.Activity
+                        activity?.runOnUiThread {
+                            activity.window.decorView.systemUiVisibility = (
+                                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            )
+                        }
+                    }
+                }
+
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         view?.evaluateJavascript(
@@ -77,6 +108,18 @@ fun MainActivityContent() {
                                     Android.saveImage(base64Data, callback);
                                 }
                             };
+                            setTimeout(function() {
+                                var app = document.getElementById('app');
+                                if (app) {
+                                    app.style.width = '100%';
+                                    app.style.height = '100%';
+                                }
+                                var canvas = document.querySelector('.sc-canvas');
+                                if (canvas) {
+                                    canvas.style.maxWidth = '100%';
+                                    canvas.style.maxHeight = '100%';
+                                }
+                            }, 500);
                             """.trimIndent(),
                             null
                         )
