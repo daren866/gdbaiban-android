@@ -39,6 +39,7 @@ fun MainActivityContent() {
                     domStorageEnabled = true
                     loadWithOverviewMode = true
                     useWideViewPort = true
+                    layoutAlgorithm = android.webkit.WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
                 }
 
                 // 创建 JavaScript 接口实例并关联当前 WebView
