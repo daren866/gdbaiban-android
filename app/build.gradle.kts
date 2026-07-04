@@ -56,8 +56,8 @@ android {
 }
 
 base {
-    val buildDate = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
-    val randomNum = kotlin.random.Random.nextInt(1, 10000)
+    val buildDate = java.text.SimpleDateFormat("yyyyMMdd").format(java.util.Date())
+    val randomNum = java.util.Random().nextInt(9999) + 1
     archivesName.set("Gudaobaiban-${buildDate}-${randomNum}")
 }
 
