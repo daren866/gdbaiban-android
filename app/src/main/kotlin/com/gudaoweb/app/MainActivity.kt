@@ -40,6 +40,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 兜底：与 AndroidManifest 中的 screenOrientation=landscape 配合，
+        // 确保在setContent创建WebView之前Activity已处于横屏，避免WebView拿到竖屏尺寸
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         setContent {
             MainActivityContent()
